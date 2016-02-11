@@ -1,0 +1,7 @@
+# Bufferfiles
+\#*#
+*~
+
+# other rubish
+*.dump
+*.beam

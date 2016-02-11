@@ -1,0 +1,4 @@
+:name "id3"
+:node-sname "id3"
+:lib-dirs '("lib" "test")
+:app-include-dirs '("include")
