@@ -4,10 +4,6 @@
 
 -include("include/id3.hrl").
 
--ifdef(TEST).
--compile(export_all).
--endif.
-
 
 read_file(Path) when is_list(Path) ->
     {ok, FD} = file:open(Path, [binary]),
@@ -16,8 +12,7 @@ read_file(FD) when is_pid(FD) ->
     {ok, RawHeader} = file:pread(FD, {bof, 0}, 10),
     Header = parse_header(RawHeader),
     Frames = read_frames(FD, Header),
-    #id3{header=Header, frames=Frames}.
-
+    #id3{ header=Header, frames=Frames }.
 
 parse_header(<<"ID3",
 	       MajorV:8/integer,
@@ -27,7 +22,7 @@ parse_header(<<"ID3",
 	       FlagC:1/integer,
 	       _:5,
 	       SizeBytes:4/binary>>) ->
-    Size = parse_size(SizeBytes),
+    Size = id3_common:decode_size(SizeBytes),
     #id3_header{ version={2, MajorV, MinorV},
 		 unsync=id3_common:bool(FlagA),
 		 extended=id3_common:bool(FlagB),
@@ -47,18 +42,6 @@ read_frames(FD, Header) ->
     end.
 
 
-parse_size(<<_:1, S1:7/integer,
-	     _:1, S2:7/integer,
-	     _:1, S3:7/integer,
-	     _:1, S4:7/integer>>) ->
-    <<Size:32/integer>> = <<0:4,
-			    S1:7/integer,
-			    S2:7/integer,
-			    S3:7/integer,
-			    S4:7/integer>>,
-    Size.
-
-
 parse_v22_frames(Binary) -> parse_v22_frames(Binary, []).
 parse_v22_frames(<<FrameID:3/binary, Size:24/integer, Rest/binary>>,
 		 Frames) ->
@@ -71,10 +54,8 @@ parse_v22_frames(_, Frames) ->
 
 parse_v23_frames(Binary) -> parse_v23_frames(Binary, []).
 parse_v23_frames(<<0, _Rest/binary>>, Frames) -> finalized_frames(Frames);
-parse_v23_frames(<<FrameID:4/binary,
-		   Size:32/integer,
-		   _FlagBytes:2/binary,
-		   Rest/binary>>
+parse_v23_frames(<<FrameID:4/binary, Size:32/integer,
+		   _FlagBytes:2/binary, Rest/binary>>
 		, Frames) when Size > 0 andalso Size =< byte_size(Rest) ->
     {Content, Tail} = split_binary(Rest, Size),
     Frame = try_parse_frame(FrameID, Content),
@@ -84,20 +65,13 @@ parse_v23_frames(_Rest, Frames) ->
 
 parse_v24_frames(Binary) -> parse_v24_frames(Binary, []). 
 parse_v24_frames(<<0, _Rest/binary>>, Frames) -> finalized_frames(Frames);
- parse_v24_frames(<<FrameID:4/binary,
-		   S1:8/integer, S2:8/integer, S3:8/integer, S4:8/integer,
+parse_v24_frames(<<FrameID:4/binary, Size:4/binary,
 		   _FlagBytes:2/binary, Rest/binary>>,
-		 Frames)
-  when S1 < 128 andalso S2 < 128 andalso S3 < 128 andalso S4 < 128 ->
-    Size = parse_size(<<S1, S2, S3, S4>>),
-    case Size of
-	0 ->
-	    finalized_frames(Frames);
-	_ ->
-	    {Content, Tail} = split_binary(Rest, Size),
-	    Frame = try_parse_frame(FrameID, Content),
-	    parse_v24_frames(Tail, [Frame|Frames])
-    end;
+		 Frames) when Size > 0 andalso Size =< byte_size(Rest) ->
+    Size = id3_common:decode_size(Size),
+    {Content, Tail} = split_binary(Rest, Size),
+    Frame = try_parse_frame(FrameID, Content),
+    parse_v24_frames(Tail, [Frame|Frames]);
 parse_v24_frames(_, Frames) ->
     finalized_frames(Frames).
 
@@ -117,7 +91,9 @@ try_parse_frame(FrameId, Content) ->
 %%%%%%%%%%%
 %%%%%%%%%%% FRAMES
 %%%%%%%%%%%
--define(parse_text_frame(ID), parse_frame(ID=Id, RawText) -> {Id, extract_text(RawText)}).
+-define(parse_text_frame(ID),
+	parse_frame(ID=Id, RawText) ->
+	       {Id, id3_common:extract_text(RawText)}).
 
 %% generic text frames
 ?parse_text_frame(<<"TAL">>);
@@ -148,46 +124,5 @@ try_parse_frame(FrameId, Content) ->
 ?parse_text_frame(<<"TYE">>);
 ?parse_text_frame(<<"TYER">>);
 
-parse_frame(Id, _Content) -> {Id,ignore}. %% not implemnted frame will be ignored
-
-
-%%%%%%%%%%%%
-%%%%%%%%%%%% COMMON STUFF
-%%%%%%%%%%%%
-
-%% TODO Tests!
-extract_text(BinString) when is_binary(BinString) ->
-    {Result, _} = decode_string(BinString),
-    Result.
-
-%% Add tests (one for every encoding)
-decode_string(Blop) ->
-    {Encoding, Content}  = get_encoding(Blop),
-    decode_string(Content, Encoding).
-
-decode_string(Blop, Encoding) ->
-    {RawString, Rest} = case case Encoding of
-				 {utf16,_} -> binary:split(Blop, [<<0,0>>]);
-				 _       -> binary:split(Blop, [<<0>>])
-			     end of
-			    [Head, Tail] -> {Head, Tail};
-			    [Head]       -> {Head, <<>>}
-			end,
-    String = unicode:characters_to_binary(RawString, Encoding, latin1),
-    {String, Rest}.
-
-get_encoding(Blob) when is_binary(Blob) ->
-    case Blob of
-	<<0, Rest/binary>> ->
-	    {latin1, Rest};
-	<<1, Rest/binary>> ->
-	    {Encoding, Length} = unicode:bom_to_encoding(Rest),
-	    <<_Bom:Length/binary, Rest1/binary>> = Rest,
-	    {Encoding, Rest1};
- 	<<2, Rest/binary>> ->
-	    {{utf16, big}, Rest};
-	<<3, Rest/binary>> ->
-	    {utf8, Rest};
-	_ ->
-	    {latin1, Blob}
-    end.
+%% not implemnted frame will be ignored
+parse_frame(Id, _Content) -> {Id,ignore}.
