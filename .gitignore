@@ -5,3 +5,5 @@
 # other rubish
 *.dump
 *.beam
+ebin
+id3.d

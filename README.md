@@ -2,3 +2,5 @@
 
 I wrote this for exercise and fun.
 
+It should read the all information inside an id3 container.
+
