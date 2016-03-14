@@ -186,3 +186,4 @@ genre(123) -> <<"Drum Solo">>;
 genre(124) -> <<"A capella">>;
 genre(125) -> <<"Euro-House">>;
 genre(126) -> <<"Dance Hall">>;
+genre(_)   -> <<"Unkown">>.
