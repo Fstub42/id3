@@ -42,50 +42,47 @@ read_frames(FD, Header) ->
     end.
 
 
-parse_v22_frames(Binary) -> parse_v22_frames(Binary, []).
+parse_v22_frames(Binary) -> parse_v22_frames(Binary, #{}).
 parse_v22_frames(<<FrameID:3/binary, Size:24/integer, Rest/binary>>,
 		 Frames) ->
     {Content, Tail} = split_binary(Rest, Size),
-    Frame = try_parse_frame(FrameID, Content),
-    parse_v22_frames(Tail, [Frame|Frames]);
-parse_v22_frames(_, Frames) ->
-    finalized_frames(Frames).
+    Frames1 = add_frame(Frames, FrameID, Content),
+    parse_v22_frames(Tail, Frames1);
+parse_v22_frames(_, Frames) -> Frames.
 
-
-parse_v23_frames(Binary) -> parse_v23_frames(Binary, []).
-parse_v23_frames(<<0, _Rest/binary>>, Frames) -> finalized_frames(Frames);
+parse_v23_frames(Binary) -> parse_v23_frames(Binary, #{}).
 parse_v23_frames(<<FrameID:4/binary, Size:32/integer,
 		   _FlagBytes:2/binary, Rest/binary>>
 		, Frames) when Size > 0 andalso Size =< byte_size(Rest) ->
     {Content, Tail} = split_binary(Rest, Size),
-    Frame = try_parse_frame(FrameID, Content),
-    parse_v23_frames(Tail, [Frame|Frames]);
-parse_v23_frames(_Rest, Frames) ->
-    finalized_frames(Frames).
+    Frames1 = add_frame(Frames, FrameID, Content),
+    parse_v23_frames(Tail, Frames1);
+parse_v23_frames(_, Frames) -> Frames.
 
-parse_v24_frames(Binary) -> parse_v24_frames(Binary, []). 
-parse_v24_frames(<<0, _Rest/binary>>, Frames) -> finalized_frames(Frames);
+
+parse_v24_frames(Binary) -> parse_v24_frames(Binary, #{}). 
 parse_v24_frames(<<FrameID:4/binary, Size:4/binary,
 		   _FlagBytes:2/binary, Rest/binary>>,
 		 Frames) when Size > 0 andalso Size =< byte_size(Rest) ->
     Size = id3_common:decode_size(Size),
     {Content, Tail} = split_binary(Rest, Size),
-    Frame = try_parse_frame(FrameID, Content),
-    parse_v24_frames(Tail, [Frame|Frames]);
-parse_v24_frames(_, Frames) ->
-    finalized_frames(Frames).
+    Frames1 = add_frame(Frames, FrameID, Content),
+    parse_v24_frames(Tail, Frames1);
+parse_v24_frames(_, Frames) -> Frames.
 
-finalized_frames(Frames) ->
-    [{Id, Data} || {Id, Data} <- Frames, Data =/= ignore].
 
-try_parse_frame(FrameId, Content) ->
+add_frame(Frames, FrameId, Content) ->
     try parse_frame(FrameId, Content) of
-	Product -> Product
+	Product ->
+	    case maps:find(FrameId, Frames) of
+		error -> Frames#{ FrameId => [Product] };
+		{ok, OtherVals} -> Frames#{ FrameId := [Product|OtherVals] }
+	    end
     catch
-	Lvl:Msg ->
-	    io:format("~p:~p called as parse_frame(~p)~n",
-		      [Lvl, Msg, FrameId]),
-	    ignore
+	LogLvl:Msg ->
+	    io:format("~p:parse_frame/2 ~p:~p",
+		      [?MODULE, LogLvl, Msg]),
+	    Frames
     end.
 
 %%%%%%%%%%%
