@@ -1,6 +1,8 @@
 -module(id3v2).
 -author("fstub42").
--export([read_file/1]).
+-export([read_file/1,
+	 parse_header/1,
+	 read_frames/2]).
 
 -include("include/id3.hrl").
 
@@ -36,43 +38,40 @@ parse_header(_) ->
 read_frames(FD, Header) ->
     {ok, BinaryFrames} = file:pread(FD, {bof, 10}, Header#id3_header.size),
     case Header#id3_header.version of
-	{2, 2, _} -> parse_v22_frames(BinaryFrames);
-	{2, 3, _} -> parse_v23_frames(BinaryFrames);
-	{2, 4, _} -> parse_v24_frames(BinaryFrames)
+	{2, 2, _} -> parse_v2_frames(BinaryFrames, #{});
+	{2, 3, _} -> parse_v3_frames(BinaryFrames, #{});
+	{2, 4, _} -> parse_v4_frames(BinaryFrames, #{})
     end.
 
-
-parse_v22_frames(Binary) -> parse_v22_frames(Binary, #{}).
-parse_v22_frames(<<FrameID:3/binary, Size:24/integer, Rest/binary>>,
+parse_v2_frames(<<FrameID:3/binary, Size:24/integer, Rest/binary>>,
 		 Frames) ->
     {Content, Tail} = split_binary(Rest, Size),
-    Frames1 = add_frame(Frames, FrameID, Content),
-    parse_v22_frames(Tail, Frames1);
-parse_v22_frames(_, Frames) -> Frames.
+    Frames1 = add_frame(Frames, FrameID, Content, fun parse_v2_frame/2),
+    parse_v2_frames(Tail, Frames1);
+parse_v2_frames(_, Frames) -> Frames.
 
-parse_v23_frames(Binary) -> parse_v23_frames(Binary, #{}).
-parse_v23_frames(<<FrameID:4/binary, Size:32/integer,
+parse_v3_frames(<<FrameID:4/binary, Size:32/integer,
 		   _FlagBytes:2/binary, Rest/binary>>
 		, Frames) when Size > 0 andalso Size =< byte_size(Rest) ->
     {Content, Tail} = split_binary(Rest, Size),
-    Frames1 = add_frame(Frames, FrameID, Content),
-    parse_v23_frames(Tail, Frames1);
-parse_v23_frames(_, Frames) -> Frames.
+    Frames1 = add_frame(Frames, FrameID, Content, fun parse_v3_frame/2),
+    parse_v3_frames(Tail, Frames1);
+parse_v3_frames(_, Frames) -> Frames.
 
 
-parse_v24_frames(Binary) -> parse_v24_frames(Binary, #{}). 
-parse_v24_frames(<<FrameID:4/binary, Size:4/binary,
+parse_v4_frames(<<FrameID:4/binary, Size:4/binary,
 		   _FlagBytes:2/binary, Rest/binary>>,
 		 Frames) when Size > 0 andalso Size =< byte_size(Rest) ->
     Size = id3_common:decode_size(Size),
     {Content, Tail} = split_binary(Rest, Size),
-    Frames1 = add_frame(Frames, FrameID, Content),
-    parse_v24_frames(Tail, Frames1);
-parse_v24_frames(_, Frames) -> Frames.
+    Frames1 = add_frame(Frames, FrameID, Content, fun parse_v3_frame/2),
+    parse_v4_frames(Tail, Frames1);
+parse_v4_frames(_, Frames) -> Frames.
 
 
-add_frame(Frames, FrameId, Content) ->
-    try parse_frame(FrameId, Content) of
+add_frame(Frames, FrameId, Content, ParseFun) ->
+    try ParseFun(FrameId, Content) of
+	ignore -> Frames;
 	Product ->
 	    case maps:find(FrameId, Frames) of
 		error -> Frames#{ FrameId => [Product] };
@@ -80,46 +79,24 @@ add_frame(Frames, FrameId, Content) ->
 	    end
     catch
 	LogLvl:Msg ->
-	    io:format("~p:parse_frame/2 ~p:~p",
-		      [?MODULE, LogLvl, Msg]),
+	    %% @todo use real logging used provided by the app using this lib
+	    io:format("~p ~p:~p", [ParseFun, LogLvl, Msg]),
 	    Frames
     end.
 
-%%%%%%%%%%%
-%%%%%%%%%%% FRAMES
-%%%%%%%%%%%
--define(parse_text_frame(ID),
-	parse_frame(ID=Id, RawText) ->
-	       {Id, id3_common:extract_text(RawText)}).
 
-%% generic text frames
-?parse_text_frame(<<"TAL">>);
-?parse_text_frame(<<"TALB">>);
-?parse_text_frame(<<"TCMP">>);
-?parse_text_frame(<<"TCO">>);
-?parse_text_frame(<<"TCOM">>);
-?parse_text_frame(<<"TCON">>);
-?parse_text_frame(<<"TDAT">>);
-?parse_text_frame(<<"TDRC">>);
-?parse_text_frame(<<"TEN">>);
-?parse_text_frame(<<"TENC">>);
-?parse_text_frame(<<"TFLT">>);
-?parse_text_frame(<<"TIT2">>);
-?parse_text_frame(<<"TLAN">>);
-?parse_text_frame(<<"TLEN">>);
-?parse_text_frame(<<"TOPE">>);
-?parse_text_frame(<<"TP1">>);
-?parse_text_frame(<<"TPA">>);
-?parse_text_frame(<<"TPE2">>);
-?parse_text_frame(<<"TPUB">>);
-?parse_text_frame(<<"TRCK">>);
-?parse_text_frame(<<"TRK">>);
-?parse_text_frame(<<"TSOC">>);
-?parse_text_frame(<<"TSOT">>);
-?parse_text_frame(<<"TSSE">>);
-?parse_text_frame(<<"TT2">>);
-?parse_text_frame(<<"TYE">>);
-?parse_text_frame(<<"TYER">>);
+parse_v2_frame(<<"TXX">>, RawText) ->
+    RawText;
+parse_v2_frame(<<"T",_/binary>>=Id, RawText) when size(Id) =:= 3 ->
+    id3_common:extract_text(RawText);
+parse_v2_frame(Id,_) when size(Id) =:= 3 ->
+    ignore.
 
+
+parse_v3_frame(<<"TXXX">>, RawText) ->
+    RawText;
+parse_v3_frame(<<"T",_/binary>>=Id, RawText) when size(Id) =:= 4 ->
+    id3_common:extract_text(RawText);
+    
 %% not implemnted frame will be ignored
-parse_frame(Id, _Content) -> {Id,ignore}.
+parse_v3_frame(Id, _Content) when size(Id) =:= 4 -> ignore.
