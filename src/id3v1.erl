@@ -20,16 +20,18 @@ parse(<<"TAG",
 	0:8/integer,
 	Track:8/integer,
 	GenreNum:8/integer>>) ->
-    Frames = #{
-      title => id3_common:extract_text(Title),
-      artist => id3_common:extract_text(Artist),
-      album => id3_common:extract_text(Album),
-      year => id3_common:extract_text(Year),
-      comment => id3_common:extract_text(Comment),
-      track => Track,
-      genre => id3_common:genre(GenreNum)
-     },
-    #id3{ frames=Frames };
+    #id3{
+       frames=#{
+	 title => id3_common:extract_text(Title),
+	 artist => id3_common:extract_text(Artist),
+	 album => id3_common:extract_text(Album),
+	 year => id3_common:extract_text(Year),
+	 comment => id3_common:extract_text(Comment),
+	 track => Track,
+	 genre => id3_common:genre(GenreNum)
+	},
+       header=#id3_header{ version={1,1,0} } %% ... header should be a map 2
+      };
 
 %% id3v1.0
 parse(<<"TAG",
@@ -39,17 +41,19 @@ parse(<<"TAG",
 	Year:4/binary,
 	Comment:30/binary,
 	GenreNum:8/integer>>) ->
-    Frames = #{
-      title => id3_common:extract_text(Title),
-      artist => id3_common:extract_text(Artist),
-      album => id3_common:extract_text(Album),
-      year => id3_common:extract_text(Year),
-      comment => id3_common:extract_text(Comment),
-      track => 0, %% sure?
-      genre => id3_common:genre(GenreNum)
-     },
-    #id3{ frames=Frames };
-        
+    #id3{
+       frames=#{
+	 title => id3_common:extract_text(Title),
+	 artist => id3_common:extract_text(Artist),
+	 album => id3_common:extract_text(Album),
+	 year => id3_common:extract_text(Year),
+	 comment => id3_common:extract_text(Comment),
+	 track => 0, %% sure?
+	 genre => id3_common:genre(GenreNum)
+	},
+       header=#id3_header{ version={1,0,0} }
+      };
+
 parse(_Other) ->
     throw(header_not_found). %% that is no ID3v1 tag
 
