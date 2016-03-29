@@ -32,15 +32,20 @@ decode_string(Blop) ->
     decode_string(Content, Encoding).
 
 decode_string(Blop, Encoding) ->
-    {RawString, Rest} = case case Encoding of
-				 {utf16,_} -> binary:split(Blop, [<<0,0>>]);
-				 _       -> binary:split(Blop, [<<0>>])
-			     end of
-			    [Head, Tail] -> {Head, Tail};
-			    [Head]       -> {Head, <<>>}
+    {RawString, Rest} = case Encoding of
+			    {utf16,_} -> binary_split(Blop, <<0,0>>);
+			    _         -> binary_split(Blop, <<0>>)
 			end,
     String = unicode:characters_to_binary(RawString, Encoding, latin1),
+    true = is_binary(String), %%if shit is wrong it should fail #erlang
     {String, Rest}.
+
+binary_split(Blop, Sep) ->
+    case binary:split(Blop, [Sep]) of
+	[Head, Tail] -> {Head, Tail};
+	[Head]       -> {Head, <<>>}
+    end.
+
 
 get_encoding(Blob) when is_binary(Blob) ->
     case Blob of
@@ -54,8 +59,8 @@ get_encoding(Blob) when is_binary(Blob) ->
 	    {{utf16, big}, Rest};
 	<<3, Rest/binary>> ->
 	    {utf8, Rest};
-	_ ->
-	    {latin1, Blob}
+        Rest ->
+	    {latin1, Rest}
     end.
 
 
