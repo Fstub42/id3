@@ -4,6 +4,7 @@
 
 -include("include/id3.hrl").
 
+
 read_file(FilePath) when is_list(FilePath) ->
     {ok, FD} = file:open(FilePath, [binary]), %TODO test add modes
     ID3Meta = try id3v2:read_file(FD) of
@@ -15,5 +16,4 @@ read_file(FilePath) when is_list(FilePath) ->
 		      V1Meta
 	      end,
     ok = file:close(FD),
-    ID3Meta.
-
+    {ok, ID3Meta}.
