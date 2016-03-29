@@ -40,12 +40,12 @@ read_frames(FD, Header) ->
     case Header#id3_header.version of
 	{2, 2, _} -> parse_v2_frames(BinaryFrames, #{});
 	{2, 3, _} -> parse_v3_frames(BinaryFrames, #{});
-	{2, 4, _} -> parse_v4_frames(BinaryFrames, #{})
+	{2, 4, _} -> parse_v3_frames(BinaryFrames, #{})
     end.
 
 parse_v2_frames(<<FrameID:3/binary, Size:24/integer, Rest/binary>>,
 		 Frames) ->
-    {Content, Tail} = split_binary(Rest, Size),
+    {Content, Tail} = erlang:split_binary(Rest, Size),
     Frames1 = add_frame(Frames, FrameID, Content, fun parse_v2_frame/2),
     parse_v2_frames(Tail, Frames1);
 parse_v2_frames(_, Frames) -> Frames.
@@ -53,34 +53,25 @@ parse_v2_frames(_, Frames) -> Frames.
 parse_v3_frames(<<FrameID:4/binary, Size:32/integer,
 		   _FlagBytes:2/binary, Rest/binary>>
 		, Frames) when Size > 0 andalso Size =< byte_size(Rest) ->
-    {Content, Tail} = split_binary(Rest, Size),
+    {Content, Tail} = erlang:split_binary(Rest, Size),
     Frames1 = add_frame(Frames, FrameID, Content, fun parse_v3_frame/2),
     parse_v3_frames(Tail, Frames1);
 parse_v3_frames(_, Frames) -> Frames.
 
 
-parse_v4_frames(<<FrameID:4/binary, Size:4/binary,
-		   _FlagBytes:2/binary, Rest/binary>>,
-		 Frames) when Size > 0 andalso Size =< byte_size(Rest) ->
-    Size = id3_common:decode_size(Size),
-    {Content, Tail} = split_binary(Rest, Size),
-    Frames1 = add_frame(Frames, FrameID, Content, fun parse_v3_frame/2),
-    parse_v4_frames(Tail, Frames1);
-parse_v4_frames(_, Frames) -> Frames.
-
-
-add_frame(Frames, FrameId, Content, ParseFun) ->
-    try ParseFun(FrameId, Content) of
+add_frame(Frames, FrameID, Content, ParseFun) ->
+    try ParseFun(FrameID, Content) of
 	ignore -> Frames;
 	Product ->
-	    case maps:find(FrameId, Frames) of
-		error -> Frames#{ FrameId => [Product] };
-		{ok, OtherVals} -> Frames#{ FrameId := [Product|OtherVals] }
+	    case maps:find(FrameID, Frames) of
+		error -> Frames#{ FrameID => [Product] };
+		{ok, OtherVals} -> Frames#{ FrameID := [Product|OtherVals] }
 	    end
     catch
 	LogLvl:Msg ->
 	    %% @todo use real logging used provided by the app using this lib
-	    io:format("~p ~p:~p", [ParseFun, LogLvl, Msg]),
+	    %% @todo line numbers would be really useful
+	    io:format("~p in ~p:~p~n", [LogLvl, ?MODULE, Msg]),
 	    Frames
     end.
 
