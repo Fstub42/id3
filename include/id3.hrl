@@ -1,16 +1,16 @@
-%%TODO: docu
 
-%% @type id3() = #id3{ header = id3_header(),
-%%                     frames = [property()] }
--record(id3, {header, frames=#{}}).
+%%TODO: docs
 
-%% @type id3_header() = #id3_header{version    = {integer(), integer(), integer()},
-%%                                  size       = integer(),
-%%                                  unsync     = boolean(),
-%%                                  extended   = boolean(),
-%%                                  experiment = boolean()}
--record(id3_header, {version :: {integer(), integer(), integer()},
-		     size :: integer(),
-		     unsync :: integer(),
-		     extended :: integer(),
-		     experiment :: integer()}).
+-record(id3, {header,
+	      frames=#{} :: map()}).
+
+
+-record(id3_header, {version :: {non_neg_integer(),
+				 non_neg_integer(),
+				 non_neg_integer()} | undefined,
+		     size :: non_neg_integer() | undefined,
+		     unsync=false :: boolean(),
+		     extended=false :: boolean(),
+		     experiment=false :: boolean() }).
+
+
