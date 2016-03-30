@@ -80,6 +80,8 @@ parse_v2_frame(<<"TXX">>, RawText) ->
     RawText;
 parse_v2_frame(<<"T",_/binary>>=Id, RawText) when size(Id) =:= 3 ->
     id3_common:extract_text(RawText);
+parse_v2_frame(<<"U",_/binary>>=Id, RawUrl) when size(Id) =:= 3 ->
+    id3_common:extract_text(RawUrl);
 parse_v2_frame(Id,_) when size(Id) =:= 3 ->
     ignore.
 
@@ -88,6 +90,9 @@ parse_v3_frame(<<"TXXX">>, RawText) ->
     RawText;
 parse_v3_frame(<<"T",_/binary>>=Id, RawText) when size(Id) =:= 4 ->
     id3_common:extract_text(RawText);
-    
+
+parse_v3_frame(<<"W",_/binary>>=Id, RawUrl) when size(Id) =:= 4 ->
+    id3_common:extract_text(RawUrl);
+
 %% not implemnted frame will be ignored
 parse_v3_frame(Id, _Content) when size(Id) =:= 4 -> ignore.
