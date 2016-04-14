@@ -6,13 +6,13 @@
 	 decode_string/1]).
 
 bool(1) -> true;
-bool(_) -> false.
+bool(0) -> false.
 
 
 decode_size(<<_:1, S1:7/integer,
-	     _:1, S2:7/integer,
-	     _:1, S3:7/integer,
-	     _:1, S4:7/integer>>) ->
+	      _:1, S2:7/integer,
+	      _:1, S3:7/integer,
+	      _:1, S4:7/integer>>) ->
     <<Size:32/integer>> = <<0:4,
 			    S1:7/integer,
 			    S2:7/integer,
@@ -36,15 +36,27 @@ decode_string(Blop, Encoding) ->
 			    {utf16,_} -> binary_split(Blop, <<0,0>>);
 			    _         -> binary_split(Blop, <<0>>)
 			end,
-    String = unicode:characters_to_binary(RawString, Encoding, latin1),
-    true = is_binary(String), %%if shit is wrong it should fail #erlang
+    String = unicode:characters_to_binary(RawString, Encoding, unicode),
+    if
+	not is_binary(String) ->
+	    throw({encoding_fail, {Blop, Encoding, String}});
+	true -> ok
+    end,
     {String, Rest}.
 
 binary_split(Blop, Sep) ->
-    case binary:split(Blop, [Sep]) of
-	[Head, Tail] -> {Head, Tail};
-	[Head]       -> {Head, <<>>}
-    end.
+    binary_split_ex(Blop, Sep, <<>>).
+
+binary_split_ex(<<>>, _, FrontCache) ->
+    {FrontCache, <<>>};
+binary_split_ex(Sep, Sep, FrontCache) ->
+    {FrontCache, <<>>};
+binary_split_ex(<<Sep,Rest/binary>>, Sep, FrontCache) ->
+    {FrontCache, Rest};
+binary_split_ex(Blop, Sep, FrontCache) ->
+    S = erlang:byte_size(Sep),
+    <<Char:S/binary, Rest/binary>> = Blop,
+    binary_split_ex(Rest, Sep,<<FrontCache/binary,Char/binary>>).
 
 
 get_encoding(Blob) when is_binary(Blob) ->
