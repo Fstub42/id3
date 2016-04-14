@@ -7,13 +7,17 @@
 
 read_file(FilePath) when is_list(FilePath) ->
     {ok, FD} = file:open(FilePath, [binary]), %TODO test add modes
-    ID3Meta = try id3v2:read_file(FD) of
+    Return = try id3v2:read_file(FD) of
 		  V2Meta=#id3{} ->
-		      V2Meta
+		      {ok, V2Meta}
 	      catch
 		  header_not_found ->
-		      {ok, V1Meta=#id3{}} = id3v1:read_file(FD),
-		      V1Meta
+		      try id3v1:read_file(FD) of
+			  {ok, V1Meta=#id3{}} ->
+			      {ok, V1Meta}
+		      catch
+			  header_not_found -> {error, invalid_file}
+		      end
 	      end,
     ok = file:close(FD),
-    {ok, ID3Meta}.
+    Return.
