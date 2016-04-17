@@ -1,9 +1,11 @@
 -module(id3_common).
 -export([bool/1,
 	 genre/1,
+	 get_encoding/1,
 	 extract_text/1,
 	 decode_size/1,
-	 decode_string/1]).
+	 decode_string/1,
+	 decode_string/2]).
 
 bool(1) -> true;
 bool(0) -> false.
@@ -44,6 +46,7 @@ decode_string(Blop, Encoding) ->
     end,
     {String, Rest}.
 
+
 binary_split(Blop, Sep) ->
     binary_split_ex(Blop, Sep, <<>>).
 
@@ -51,12 +54,14 @@ binary_split_ex(<<>>, _, FrontCache) ->
     {FrontCache, <<>>};
 binary_split_ex(Sep, Sep, FrontCache) ->
     {FrontCache, <<>>};
-binary_split_ex(<<Sep,Rest/binary>>, Sep, FrontCache) ->
-    {FrontCache, Rest};
 binary_split_ex(Blop, Sep, FrontCache) ->
     S = erlang:byte_size(Sep),
-    <<Char:S/binary, Rest/binary>> = Blop,
-    binary_split_ex(Rest, Sep,<<FrontCache/binary,Char/binary>>).
+    case Blop of
+	<<Sep:S/binary, Rest/binary>> ->
+	    {FrontCache, Rest};
+	<<Char:S/binary, Rest/binary>> ->
+	    binary_split_ex(Rest, Sep,<<FrontCache/binary,Char/binary>>)
+    end.
 
 
 get_encoding(Blob) when is_binary(Blob) ->
